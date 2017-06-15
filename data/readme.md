@@ -1,1 +1,1 @@
-Data folder, download data from [http://etlcdb.db.aist.go.jp/](http://etlcdb.db.aist.go.jp/) and uncompress here.
+Data folder, download data from [http://etlcdb.db.aist.go.jp/](http://etlcdb.db.aist.go.jp/) and uncompress inside `raw` folder.
