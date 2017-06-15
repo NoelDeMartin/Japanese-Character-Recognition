@@ -1,2 +1,7 @@
 *
 !.gitignore
+!readme.md
+
+raw/*
+!raw
+!/raw/.gitkeep
