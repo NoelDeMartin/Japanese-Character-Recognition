@@ -1,6 +1,7 @@
 *
 !.gitignore
 !README.md
+!prepare.py
 
 raw/*
 !raw
