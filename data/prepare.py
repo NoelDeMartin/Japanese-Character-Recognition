@@ -5,10 +5,6 @@ import struct
 import random
 import os
 
-import numpy as np
-
-from PIL import Image, ImageEnhance
-
 def main():
 	extract_zip()
 	unpack_katakana()
@@ -44,7 +40,6 @@ def unpack_katakana():
 			('12', 11287), # TODO リ(RI) on Sheet 2708 is missing
 			('13', 4233),
 		]
-
 		with open(relative_path('katakana/categories.csv'), 'w') as categories_file:
 
 			categories_file.write('category,katakana_character')
@@ -58,22 +53,14 @@ def unpack_katakana():
 				with open(relative_path('raw/ETL1/ETL1C_' + dataset_suffix), 'r') as file:
 
 					for i in range(dataset_size):
-						file.seek(i * 2052)
-						data = struct.unpack('>H2sH6BI4H4B4x2016s4x', file.read(2052))
-						character = data[1].strip()
-						image = prepare_image(Image.frombytes('F', (64, 63), data[18], 'bit', 4))
-
-						output_dir = relative_path('katakana/images/{}'.format(character))
-						if not os.path.exists(output_dir):
-							os.makedirs(output_dir)
-
-						image.save('{}/{}.png'.format(output_dir, i), 'PNG')
+						file.seek(i * 2052 + 2)
+						character = file.read(2).strip()
 
 						if character not in categories:
 							categories.append(character)
 							categories_file.write('\n{},{}'.format(categories.index(character), character))
 
-						classification.append(('images/{}/{}.png'.format(character, i), categories.index(character)))
+						classification.append((i * 2052 + 33, categories.index(character)))
 
 						if i % 1000 == 0:
 							print 'Unpacking dataset {}/{} - {}% ...'.format(
@@ -81,22 +68,12 @@ def unpack_katakana():
 
 			with open(relative_path('katakana/classification.csv'), 'w') as classification_file:
 
-				classification_file.write('relative_path,category')
+				classification_file.write('file_path,position,category')
 				random.shuffle(classification)
-				for path, category in classification:
-					classification_file.write('\n{},{}'.format(path, category))
+				for position, category in classification:
+					classification_file.write('\n{},{},{}'.format('raw/ETL1/ETL1C_' + dataset_suffix, position, category))
 
 	print 'Katakana unpacked!'
-
-def prepare_image(raw_image):
-	image = raw_image.resize((64, 64), Image.LANCZOS)
-	image = image.convert('RGB')
-	image = ImageEnhance.Brightness(image).enhance(16)
-
-	data = np.array(image)
-	data = 255 - data
-
-	return Image.fromarray(data, mode='RGB')
 
 # Runtime
 
