@@ -7,7 +7,6 @@ import random
 import numpy as np
 import tensorflow as tf
 
-from PIL import Image
 from tensorflow.examples.tutorials.mnist import input_data as mnist_input_data
 
 def main():
@@ -16,15 +15,16 @@ def main():
 		PoolingLayer(2),
 		ConvolutionLayer(5, 1, 128),
 		PoolingLayer(2),
-		ConvolutionLayer(5, 1, 200),
-		PoolingLayer(2),
-		FullyConnectedLayer(1024),
+		FullyConnectedLayer(128),
+		FullyConnectedLayer(64),
+		FullyConnectedLayer(32),
 		DropoutLayer()
 	], KatakanaDataSet())
 	cnn.build_graph()
-	cnn.train_model(steps=20,
-					training_batch_size=50,
+	cnn.train_model(steps=100,
+					training_batch_size=128,
 					evaluation_batch_size=50)
+	cnn.save_graph('model.pb')
 
 # Method definitions
 
@@ -58,7 +58,9 @@ class ConvolutionalNeuralNetwork:
 
 		self.cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_truth, logits=self.y)
 		self.loss = tf.reduce_mean(self.cross_entropy)
-		self.train_step = tf.train.GradientDescentOptimizer(0.005).minimize(self.loss)
+
+		# TODO adapt learning rate each step to improve learning speed
+		self.train_step = tf.train.AdamOptimizer(0.005).minimize(self.loss)
 		self.accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(self.y, 1), tf.argmax(self.y_truth, 1)), tf.float32))
 
 		# Prepare TensorBoard
@@ -85,6 +87,32 @@ class ConvolutionalNeuralNetwork:
 				x, y_truth = self.dataset.get_test_batch(evaluation_batch_size)
 				summary_run = sess.run(self.summary, feed_dict=self._feed(1, {self.x: x, self.y_truth: y_truth}))
 				summary_writer.add_summary(summary_run, step)
+
+	def save_graph(self, file_path):
+
+		graph = tf.Graph()
+
+		with graph.as_default():
+
+			input_shape = self.dataset.get_input_shape()
+			output_size = self.dataset.get_output_size()
+
+			readout = self.layers[-1]
+			readout.output_size = output_size
+
+			input_placeholder = tf.placeholder(tf.float32, [None] + input_shape, 'input')
+
+			tensor = input_placeholder
+
+			for layer in self.layers:
+				if not isinstance(layer, DropoutLayer):
+					tensor = layer.build_node(tensor)
+
+			tf.identity(tensor, 'prediction')
+
+			with tf.Session() as sess:
+				sess.run(tf.global_variables_initializer())
+				tf.train.write_graph(graph, os.path.dirname(file_path), os.path.basename(file_path), as_text=False)
 
 	def _feed(self, keep_probability, feed):
 		for layer in self.layers:
@@ -231,8 +259,8 @@ class KatakanaDataSet(DataSet):
 		with open(relative_path('data/katakana/classification.csv')) as file:
 			reader = csv.reader(file)
 			reader.next()
-			for file_path, position, category in reader:
-				self.classification.append((file_path, int(position), int(category)))
+			for position, category in reader:
+				self.classification.append((int(position), int(category)))
 
 	def get_input_shape(self):
 		return [64, 64, 1]
@@ -259,20 +287,19 @@ class KatakanaDataSet(DataSet):
 		inputs = []
 		classification = []
 		categories_size = len(self.categories)
-		for i in random.sample(range(int(start), int(end)), length):
-			file_path, position, category = self.classification[i]
-			inputs.append(self._image_data(relative_path('data/' + file_path), position))
-			classification.append(self._one_hot(self.categories.index(category), categories_size))
+		with open(relative_path('data/katakana/data')) as data_file:
+			for i in random.sample(range(int(start), int(end)), length):
+				position, category = self.classification[i]
+				inputs.append(self._image_data(data_file, position))
+				classification.append(self._one_hot(self.categories.index(category), categories_size))
 
 		return inputs, classification
 
-	def _image_data(self, path, position):
-		with open(path) as file:
-			file.seek(position)
-			data = np.array(Image.frombytes('F', (64, 63), file.read(2016), 'bit', 4))
-			data = np.vstack([data, np.zeros(64)])
-			data = data.reshape([64, 64, 1])
-			return data
+	def _image_data(self, file, position):
+		file.seek(position * 512)
+		data = np.unpackbits(np.frombuffer(file.read(512), dtype=np.uint8))
+		data = data.reshape([64, 64, 1])
+		return data
 
 	def _one_hot(self, index, length):
 		vector = np.zeros(length)
