@@ -4,12 +4,14 @@ import os
 import csv
 import time
 import random
+import operator
 import numpy as np
 import tensorflow as tf
 
 from tensorflow.examples.tutorials.mnist import input_data as mnist_input_data
 
 def main():
+
 	cnn = ConvolutionalNeuralNetwork([
 		ConvolutionLayer(5, 1, 64),
 		PoolingLayer(2),
@@ -21,15 +23,19 @@ def main():
 		DropoutLayer()
 	], KatakanaDataSet())
 	cnn.build_graph()
-	cnn.train_model(steps=100,
+	cnn.train_model(steps=200,
 					training_batch_size=128,
-					evaluation_batch_size=50)
-	cnn.save_graph('model.pb')
+					evaluation_batch_size=50,
+					file_path="model.pb")
 
 # Method definitions
 
 def relative_path(path):
 	return os.path.dirname(os.path.realpath(__file__)) + '/' + path
+
+def max_index(array):
+	index, value = max(enumerate(array), key=operator.itemgetter(1))
+	return index
 
 class ConvolutionalNeuralNetwork:
 
@@ -52,7 +58,7 @@ class ConvolutionalNeuralNetwork:
 		tensor = self.x
 
 		for layer in self.layers:
-			tensor = layer.build_node(tensor)
+			tensor = layer.build_training_node(tensor)
 
 		self.y = tensor
 
@@ -70,13 +76,14 @@ class ConvolutionalNeuralNetwork:
 
 		self.summary = tf.summary.merge_all()
 
+	def train_model(self, steps=500, training_batch_size=None, evaluation_batch_size=None, file_path=False):
 
-	def train_model(self, steps=500, training_batch_size=None, evaluation_batch_size=None):
-		with tf.Session() as sess:
+		with tf.Session() as session:
 
-			summary_writer = tf.summary.FileWriter(relative_path('data/training_summaries/run_{}'.format(str(int(time.time())))), sess.graph)
+			summary_path = relative_path('data/training_summaries/run_{}'.format(str(int(time.time()))))
+			summary_writer = tf.summary.FileWriter(summary_path, session.graph)
 
-			sess.run(tf.global_variables_initializer())
+			session.run(tf.global_variables_initializer())
 			for step in range(steps):
 
 				# Train
@@ -85,14 +92,18 @@ class ConvolutionalNeuralNetwork:
 
 				# Send data to TensorBoard
 				x, y_truth = self.dataset.get_test_batch(evaluation_batch_size)
-				summary_run = sess.run(self.summary, feed_dict=self._feed(1, {self.x: x, self.y_truth: y_truth}))
+				summary_run = session.run(self.summary, feed_dict=self._feed(1, {self.x: x, self.y_truth: y_truth}))
 				summary_writer.add_summary(summary_run, step)
 
-	def save_graph(self, file_path):
+			if file_path:
+				self._save_graph(session, file_path)
 
-		graph = tf.Graph()
+	def _save_graph(self, session, file_path):
 
-		with graph.as_default():
+		training_graph = tf.get_default_graph()
+		prediction_graph = tf.Graph()
+
+		with prediction_graph.as_default():
 
 			input_shape = self.dataset.get_input_shape()
 			output_size = self.dataset.get_output_size()
@@ -106,13 +117,11 @@ class ConvolutionalNeuralNetwork:
 
 			for layer in self.layers:
 				if not isinstance(layer, DropoutLayer):
-					tensor = layer.build_node(tensor)
+					tensor = layer.build_prediction_node(tensor, session)
 
 			tf.identity(tensor, 'prediction')
 
-			with tf.Session() as sess:
-				sess.run(tf.global_variables_initializer())
-				tf.train.write_graph(graph, os.path.dirname(file_path), os.path.basename(file_path), as_text=False)
+			tf.train.write_graph(prediction_graph, os.path.dirname(file_path), os.path.basename(file_path), as_text=False)
 
 	def _feed(self, keep_probability, feed):
 		for layer in self.layers:
@@ -131,7 +140,10 @@ class CNNLayer:
 		initial = tf.constant(0.1, shape=shape)
 		return tf.Variable(initial)
 
-	def build_node(self, input_tensor):
+	def build_training_node(self, input_tensor):
+		pass
+
+	def build_prediction_node(self, input_tensor, session):
 		pass
 
 class ConvolutionLayer(CNNLayer):
@@ -140,25 +152,43 @@ class ConvolutionLayer(CNNLayer):
 		self.patch = patch
 		self.stride = stride
 		self.features = features
+		self._weights = False
+		self._biases = False
 
-	def build_node(self, input_tensor):
-		input_size = input_tensor.shape[-1].value
-		weights = self.weight_variables([self.patch, self.patch, input_size, self.features])
-		biases = self.bias_variables([self.features])
+	def build_training_node(self, input_tensor):
 
-		return tf.nn.relu(self._conv2d(input_tensor, weights) + biases)
+		if not self._weights and not self._biases:
+			input_size = input_tensor.shape[-1].value
+			self._weights = self.weight_variables([self.patch, self.patch, input_size, self.features])
+			self._biases = self.bias_variables([self.features])
+
+		return self._build_node(input_tensor, self._weights, self._biases)
+
+	def build_prediction_node(self, input_tensor, session):
+		return self._build_node(input_tensor,
+								tf.constant(session.run(self._weights)),
+								tf.constant(session.run(self._biases)))
 
 	def _conv2d(self, input_tensor, weights):
 		return tf.nn.conv2d(input_tensor, weights,
 							strides=[self.stride, self.stride, self.stride, self.stride],
 							padding='SAME')
 
+	def _build_node(self, input_tensor, weights, biases):
+		return tf.nn.relu(self._conv2d(input_tensor, weights) + biases)
+
 class PoolingLayer(CNNLayer):
 
 	def __init__(self, pooling):
 		self.pooling = pooling
 
-	def build_node(self, input_tensor):
+	def build_training_node(self, input_tensor):
+		return self._build_node(input_tensor)
+
+	def build_prediction_node(self, input_tensor, session):
+		return self._build_node(input_tensor)
+
+	def _build_node(self, input_tensor):
 		return tf.nn.max_pool(input_tensor,
 								ksize=[1, self.pooling, self.pooling, 1],
 								strides=[1, self.pooling, self.pooling, 1],
@@ -168,12 +198,29 @@ class FullyConnectedLayer(CNNLayer):
 
 	def __init__(self, neurons):
 		self.neurons = neurons
+		self._weights = False
+		self._biases = False
 
-	def build_node(self, input_tensor):
-		flattened_size = reduce(lambda a, b: a*b, input_tensor.shape[1:]).value
-		weights = self.weight_variables([flattened_size, self.neurons])
-		biases = self.bias_variables([self.neurons])
+	def build_training_node(self, input_tensor):
 
+		flattened_size = self._flattened_size(input_tensor)
+
+		if not self._weights and not self._biases:
+			self._weights = self.weight_variables([flattened_size, self.neurons])
+			self._biases = self.bias_variables([self.neurons])
+
+		return self._build_node(input_tensor, self._weights, self._biases)
+
+	def build_prediction_node(self, input_tensor, session):
+		return self._build_node(input_tensor,
+								tf.constant(session.run(self._weights)),
+								tf.constant(session.run(self._biases)))
+
+	def _flattened_size(self, input_tensor):
+		return reduce(lambda a, b: a*b, input_tensor.shape[1:]).value
+
+	def _build_node(self, input_tensor, weights, biases):
+		flattened_size = self._flattened_size(input_tensor)
 		flattened_tensor = tf.reshape(input_tensor, [-1, flattened_size])
 		return tf.nn.relu(tf.matmul(flattened_tensor, weights) + biases)
 
@@ -182,19 +229,37 @@ class DropoutLayer(CNNLayer):
 	def __init__(self):
 		self.placeholder = tf.placeholder(tf.float32, name='dropout_probability')
 
-	def build_node(self, input_tensor):
+	def build_training_node(self, input_tensor):
+		return self._build_node(input_tensor)
+
+	def build_prediction_node(self, input_tensor, session):
+		return self._build_node(input_tensor)
+
+	def _build_node(self, input_tensor):
 		return tf.nn.dropout(input_tensor, self.placeholder)
 
 class ReadoutLayer(CNNLayer):
 
 	def __init__(self, output_size=None):
 		self.output_size = output_size
+		self._weights = False
+		self._biases = False
 
-	def build_node(self, input_tensor):
-		input_size = input_tensor.shape[-1].value
-		weights = self.weight_variables([input_size, self.output_size])
-		biases = self.bias_variables([self.output_size])
+	def build_training_node(self, input_tensor):
 
+		if not self._weights and not self._biases:
+			input_size = input_tensor.shape[-1].value
+			self._weights = self.weight_variables([input_size, self.output_size])
+			self._biases = self.bias_variables([self.output_size])
+
+		return self._build_node(input_tensor, self._weights, self._biases)
+
+	def build_prediction_node(self, input_tensor, session):
+		return self._build_node(input_tensor,
+								tf.constant(session.run(self._weights)),
+								tf.constant(session.run(self._biases)))
+
+	def _build_node(self, input_tensor, weights, biases):
 		return tf.matmul(input_tensor, weights) + biases
 
 class DataSet():
@@ -217,7 +282,7 @@ class DataSet():
 class MNISTDataSet(DataSet):
 
 	def __init__(self):
-		self._mnist = mnist_input_data.read_data_sets("MNIST_data/", one_hot=True)
+		self._mnist = mnist_input_data.read_data_sets("data/MNIST_data/", one_hot=True)
 
 	def get_input_shape(self):
 		return [28, 28, 1]
@@ -305,6 +370,22 @@ class KatakanaDataSet(DataSet):
 		vector = np.zeros(length)
 		vector[index] = 1
 		return vector
+
+class Classifier:
+
+	def __init__(self, file_path):
+		graph_def = tf.GraphDef()
+		graph_def.ParseFromString(open(file_path, 'rb').read())
+		tf.import_graph_def(graph_def, name='')
+
+		graph = tf.get_default_graph()
+
+		self.input_placeholder = graph.get_tensor_by_name('input:0')
+		self.prediction = graph.get_tensor_by_name('prediction:0')
+
+	def classify(self, input):
+		with tf.Session() as session:
+			return session.run(self.prediction, feed_dict={ self.input_placeholder: input})
 
 # Runtime
 
