@@ -7,29 +7,37 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
-import com.lincolnschilli.jcr.drawing.Stroke;
-
-import java.util.ArrayList;
+import com.lincolnschilli.jcr.drawing.Drawing;
 
 public class DrawingSheetView extends View implements View.OnTouchListener {
 
-    private ArrayList<Stroke> strokes;
-    private Stroke currentStroke;
+    private Drawing drawing;
 
     public DrawingSheetView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-        this.strokes = new ArrayList<>();
+        this.drawing = new Drawing(getWidth(), getHeight());
         this.setOnTouchListener(this);
+    }
+
+    public Drawing getDrawing() {
+        return drawing;
+    }
+
+    public void clear() {
+        drawing.clear();
+        invalidate();
+    }
+
+    @Override
+    protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight);
+        drawing.resize(width, height);
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-
-        for (Stroke stroke: strokes) {
-            stroke.draw(canvas);
-        }
-
+        drawing.draw(canvas);
     }
 
     @Override
@@ -42,35 +50,21 @@ public class DrawingSheetView extends View implements View.OnTouchListener {
 
         switch (action) {
             case MotionEvent.ACTION_DOWN:
-                startStroke(x, y);
+                drawing.startStroke(x, y);
+                invalidate();
                 return  true;
             case MotionEvent.ACTION_MOVE:
-                continuteStroke(x, y);
+                drawing.continueStroke(x, y);
+                invalidate();
                 return true;
             case MotionEvent.ACTION_UP:
-                completeStroke(x, y);
+                drawing.completeStroke(x, y);
+                invalidate();
                 return true;
             default:
                 return false;
         }
 
-    }
-
-    private void startStroke(float x, float y) {
-        currentStroke = new Stroke(x, y);
-        this.strokes.add(currentStroke);
-        invalidate();
-    }
-
-    private void continuteStroke(float x, float y) {
-        currentStroke.addPoint(x, y);
-        invalidate();
-    }
-
-    private void completeStroke(float x, float y) {
-        currentStroke.addPoint(x, y);
-        currentStroke = null;
-        invalidate();
     }
 
 }

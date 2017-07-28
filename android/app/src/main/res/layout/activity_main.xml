@@ -5,8 +5,39 @@
     android:layout_height="match_parent"
     tools:context="com.lincolnschilli.jcr.MainActivity">
 
-    <com.lincolnschilli.jcr.views.DrawingSheetView
+    <RelativeLayout
+        android:orientation="vertical"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent">
+
+        <com.lincolnschilli.jcr.views.DrawingSheetView
+            android:id="@+id/canvas"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_alignParentTop="true"
+            android:layout_above="@+id/buttons" />
+
+        <LinearLayout
+            android:id="@id/buttons"
+            android:orientation="vertical"
+            android:layout_alignParentBottom="true"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <Button
+                android:id="@+id/classify"
+                android:text="Classify"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <Button
+                android:id="@+id/clear"
+                android:text="Clear"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+        </LinearLayout>
+
+    </RelativeLayout>
 
 </android.support.constraint.ConstraintLayout>

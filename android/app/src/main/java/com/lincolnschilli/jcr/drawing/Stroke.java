@@ -1,22 +1,21 @@
 package com.lincolnschilli.jcr.drawing;
 
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 
 public class Stroke {
 
     private Path path;
-    private static Paint defaultPaint = new Paint();
-
-    static {
-        defaultPaint.setStyle(Paint.Style.STROKE);
-        defaultPaint.setStrokeWidth(8);
-    }
 
     public Stroke(float startX, float startY) {
         this.path = new Path();
         path.moveTo(startX, startY);
+    }
+
+    public void transform(Matrix matrix) {
+        path.transform(matrix);
     }
 
     public void addPoint(float x, float y) {
@@ -24,7 +23,7 @@ public class Stroke {
     }
 
     public void draw(Canvas canvas) {
-        draw(canvas, defaultPaint);
+        draw(canvas, Tools.defaultBrush);
     }
 
     public void draw(Canvas canvas, Paint paint) {
