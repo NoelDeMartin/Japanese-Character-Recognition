@@ -119,7 +119,7 @@ class ConvolutionalNeuralNetwork:
 				if not isinstance(layer, DropoutLayer):
 					tensor = layer.build_prediction_node(tensor, session)
 
-			tf.identity(tensor, 'prediction')
+			tf.identity(tf.nn.softmax(tensor), 'prediction')
 
 			tf.train.write_graph(prediction_graph, os.path.dirname(file_path), os.path.basename(file_path), as_text=False)
 
