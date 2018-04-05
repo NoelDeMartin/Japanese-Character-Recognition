@@ -9,6 +9,11 @@ import numpy as np
 
 from PIL import Image, ImageEnhance
 
+# If this is set to True, only アイウエオカキク characters will be extracted,
+# which make for a faster training time with better accuracy at the cost
+# of learning less characters.
+REDUCED_TRAINING_SET = True
+
 def main():
 	extract_zip()
 	unpack_katakana()
@@ -35,15 +40,18 @@ def unpack_katakana():
 
 		os.makedirs(output_dir)
 
-		datasets = [
-			('07', 11288),
-			('08', 11288),
-			('09', 11287), # TODO ナ(NA) on Sheet 2672 is missing
-			('10', 11288),
-			('11', 11288),
-			('12', 11287), # TODO リ(RI) on Sheet 2708 is missing
-			('13', 4233),
-		]
+		if REDUCED_TRAINING_SET:
+			datasets = [('07', 11288)]
+		else:
+			datasets = [
+				('07', 11288),
+				('08', 11288),
+				('09', 11287), # TODO ナ(NA) on Sheet 2672 is missing
+				('10', 11288),
+				('11', 11288),
+				('12', 11287), # TODO リ(RI) on Sheet 2708 is missing
+				('13', 4233),
+			]
 
 		with open(relative_path('katakana/categories.csv'), 'w') as categories_file:
 

@@ -12,20 +12,26 @@ from tensorflow.examples.tutorials.mnist import input_data as mnist_input_data
 
 def main():
 
+	# Test classification using the following code:
+	#
+	#	classifier = Classifier("model.pb")
+	#	dataset = KatakanaDataSet()
+	#	x, y_truth = dataset.get_training_batch(1)
+	#	print max_index(classifier.classify(x)[0]), max_index(y_truth[0])
+
 	cnn = ConvolutionalNeuralNetwork([
 		ConvolutionLayer(5, 1, 64),
 		PoolingLayer(2),
 		ConvolutionLayer(5, 1, 128),
 		PoolingLayer(2),
-		FullyConnectedLayer(128),
-		FullyConnectedLayer(64),
-		FullyConnectedLayer(32),
+		FullyConnectedLayer(1024),
 		DropoutLayer()
 	], KatakanaDataSet())
 	cnn.build_graph()
-	cnn.train_model(steps=200,
-					training_batch_size=128,
-					evaluation_batch_size=50,
+	cnn.train_model(steps=500,
+					training_batch_size=100,
+					evaluation_batch_size=100,
+					learning_rate=0.001,
 					file_path="model.pb")
 
 # Method definitions
@@ -34,8 +40,7 @@ def relative_path(path):
 	return os.path.dirname(os.path.realpath(__file__)) + '/' + path
 
 def max_index(array):
-	index, value = max(enumerate(array), key=operator.itemgetter(1))
-	return index
+	return max(enumerate(array), key=operator.itemgetter(1))[0]
 
 class ConvolutionalNeuralNetwork:
 
@@ -66,7 +71,8 @@ class ConvolutionalNeuralNetwork:
 		self.loss = tf.reduce_mean(self.cross_entropy)
 
 		# TODO adapt learning rate each step to improve learning speed
-		self.train_step = tf.train.AdamOptimizer(0.005).minimize(self.loss)
+		self.learning_rate = tf.placeholder(tf.float32, name='learning_rate')
+		self.train_step = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 		self.accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(self.y, 1), tf.argmax(self.y_truth, 1)), tf.float32))
 
 		# Prepare TensorBoard
@@ -76,7 +82,7 @@ class ConvolutionalNeuralNetwork:
 
 		self.summary = tf.summary.merge_all()
 
-	def train_model(self, steps=500, training_batch_size=None, evaluation_batch_size=None, file_path=False):
+	def train_model(self, steps=500, learning_rate=0.005, training_batch_size=None, evaluation_batch_size=None, file_path=False):
 
 		with tf.Session() as session:
 
@@ -88,11 +94,15 @@ class ConvolutionalNeuralNetwork:
 
 				# Train
 				x, y_truth = self.dataset.get_training_batch(training_batch_size)
-				self.train_step.run(feed_dict=self._feed(0.5, {self.x: x, self.y_truth: y_truth}))
+				self.train_step.run(feed_dict=self._feed(0.6, {self.x: x,
+																self.y_truth: y_truth,
+																self.learning_rate: learning_rate}))
 
 				# Send data to TensorBoard
 				x, y_truth = self.dataset.get_test_batch(evaluation_batch_size)
-				summary_run = session.run(self.summary, feed_dict=self._feed(1, {self.x: x, self.y_truth: y_truth}))
+				summary_run = session.run(self.summary, feed_dict=self._feed(1, {self.x: x,
+																					self.y_truth: y_truth,
+																					self.learning_rate: learning_rate}))
 				summary_writer.add_summary(summary_run, step)
 
 			if file_path:
@@ -100,7 +110,6 @@ class ConvolutionalNeuralNetwork:
 
 	def _save_graph(self, session, file_path):
 
-		training_graph = tf.get_default_graph()
 		prediction_graph = tf.Graph()
 
 		with prediction_graph.as_default():

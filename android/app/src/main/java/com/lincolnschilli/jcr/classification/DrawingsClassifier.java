@@ -10,6 +10,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 
 public class DrawingsClassifier {
@@ -30,7 +33,7 @@ public class DrawingsClassifier {
         loadTensorFlowModel(context, modelPath);
     }
 
-    public float classify(Drawing drawing) {
+    public Result[] classify(Drawing drawing) {
 
         drawing.drawBinaryData(inputBuffer, INPUT_WIDTH, INPUT_HEIGHT);
 
@@ -38,20 +41,22 @@ public class DrawingsClassifier {
         this.tensorFlow.run(new String[] { OUTPUT_NAME });
         this.tensorFlow.fetch(OUTPUT_NAME, outputBuffer);
 
-        // TODO display this in the UI
-        float maxValue = Integer.MIN_VALUE;
-        int maxIndex = 0;
+        ArrayList<Result> results = new ArrayList<>();
         for (int i = 0; i < outputBuffer.length; i++) {
-            System.out.println(categories.get(i) + " --> " + outputBuffer[i]);
-            if (outputBuffer[i] > maxValue) {
-                maxValue = outputBuffer[i];
-                maxIndex = i;
-            }
+            results.add(new Result(categories.get(i), outputBuffer[i]));
         }
 
-        System.out.println("CLASSIFICATION: " + categories.get(maxIndex));
+        Collections.sort(results, new Comparator<Result>() {
+            @Override
+            public int compare(Result a, Result b) {
+                return a.getConfidence() > b.getConfidence()? -1 : 1;
+            }
+        });
 
-        return maxIndex;
+        Result[] array = new Result[results.size()];
+        results.toArray(array);
+
+        return array;
     }
 
     private void loadTensorFlowModel(Context context, String filePath) {

@@ -10,6 +10,13 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+        <ImageView
+            android:id="@+id/preview"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_alignParentTop="true"
+            android:layout_above="@+id/buttons" />
+
         <com.lincolnschilli.jcr.views.DrawingSheetView
             android:id="@+id/canvas"
             android:layout_width="match_parent"

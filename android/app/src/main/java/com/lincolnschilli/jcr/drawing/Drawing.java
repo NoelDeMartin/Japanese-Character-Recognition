@@ -46,6 +46,19 @@ public class Drawing {
 
     public void drawBinaryData(float[] buffer, int width, int height) {
 
+        Bitmap bitmap = this.getBitmap(width, height);
+
+        // Write bitmap data to buffer
+        int dataLength = width*height;
+        int[] pixels = new int[dataLength];
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
+        for (int i = 0; i < dataLength; i++) {
+            buffer[i] = pixels[i] == 0? 0 : 1;
+        }
+
+    }
+
+    public Bitmap getBitmap(int width, int height) {
         // Transform strokes to buffer dimensions
         scaleStrokes(width / this.width, height / this.height);
 
@@ -60,14 +73,7 @@ public class Drawing {
         // Restore stroke dimensions
         scaleStrokes(this.width / width, this.height / height);
 
-        // Write bitmap data to buffer
-        int dataLength = width*height;
-        int[] pixels = new int[dataLength];
-        bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
-        for (int i = 0; i < dataLength; i++) {
-            buffer[i] = pixels[i] == 0? 0 : 1;
-        }
-
+        return bitmap;
     }
 
     public void startStroke(float x, float y) {
