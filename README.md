@@ -1,5 +1,7 @@
 # Japanese Character Recognition
 
+:warning: **Note:** This repository is unmaintained, but I'm leaving it online in case it's useful to anyone. Make sure to check the issues if you're going to use this in any way.
+
 Android application used to recognize hand-written Japanese katakana characters. Uses tensorflow to train a model with convolutional neural networks using a set of images for training.
 
 The goal of this repository is not to get a production-ready application, but rather to provide an example project integrating TensorFlow and Android.
